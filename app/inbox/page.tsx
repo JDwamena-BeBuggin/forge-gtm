@@ -15,9 +15,8 @@ const SENTIMENT_STYLES: Record<string, string> = {
 }
 
 export default async function InboxPage() {
-  const { userId } = auth()
+  const { userId } = await auth()
   if (!userId) redirect('/sign-in')
-
   const rows = await db
     .select({
       id: replies.id,
@@ -35,16 +34,13 @@ export default async function InboxPage() {
     .leftJoin(leads, eq(replies.leadId, leads.id))
     .orderBy(desc(replies.receivedAt))
     .limit(100)
-
   const unread = rows.filter((r) => !r.isRead).length
-
   return (
     <div className="px-8 py-8 max-w-4xl mx-auto">
       <div className="mb-6">
         <h1 className="text-3xl font-serif font-light">Inbox</h1>
         <p className="text-sm text-[#6b6560] mt-0.5">{unread} unread · {rows.length} total replies</p>
       </div>
-
       {rows.length === 0 ? (
         <div className="text-center py-20">
           <p className="text-lg font-serif font-light text-[#9b9589]">No replies yet</p>

@@ -7,9 +7,7 @@ import { requireAuth } from '@/lib/auth'
 export async function GET(req: NextRequest) {
   const { error } = requireAuth()
   if (error) return error
-
-  const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') ?? '20'), 100)
-
+  const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') ?? '50'), 200)
   const rows = await db
     .select({
       id: activities.id,
@@ -25,6 +23,5 @@ export async function GET(req: NextRequest) {
     .leftJoin(leads, eq(activities.leadId, leads.id))
     .orderBy(desc(activities.createdAt))
     .limit(limit)
-
   return NextResponse.json(rows)
 }

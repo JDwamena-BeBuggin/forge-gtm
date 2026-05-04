@@ -1,29 +1,21 @@
 name = "forge-gtm"
+main = ".open-next/worker.js"
 compatibility_date = "2024-07-01"
 compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = ".vercel/output/static"
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
 
 [vars]
 SENDING_DOMAIN = "outreach.yourdomain.com"
 DEFAULT_FROM_NAME = "Your Name"
 
-# Secrets (set via `wrangler secret put`):
+# Secrets — set these in the Cloudflare dashboard under Workers > Settings > Variables:
 # DATABASE_URL
 # ANTHROPIC_API_KEY
 # RESEND_API_KEY
 # RESEND_WEBHOOK_SECRET
 # CLERK_SECRET_KEY
-
-[[queues.producers]]
-queue = "email-queue"
-binding = "EMAIL_QUEUE"
-
-[[queues.consumers]]
-queue = "email-queue"
-script = "workers/process-webhooks"
-max_batch_size = 10
-max_batch_timeout = 5
-
-[[crons]]
-cron = "*/5 * * * *"
-script = "workers/send-scheduled"
+# NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+# DEFAULT_FROM_EMAIL

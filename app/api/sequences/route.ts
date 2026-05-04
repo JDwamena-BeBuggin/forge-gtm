@@ -24,30 +24,33 @@ const createSchema = z.object({
 export async function GET(_req: NextRequest) {
   const { error } = requireAuth()
   if (error) return error
-
-  const seqs = await db.select().from(sequences).orderBy(sequences.createdAt)
-  const steps = await db.select().from(sequenceSteps)
-
-  const result = seqs.map((s) => ({
+  const [allSequences, steps] = await Promise.all([
+    db.select().from(sequences),
+    db.select().from(sequenceSteps),
+  ])
+  return NextResponse.json(allSequences.map((s) => ({
     ...s,
     steps: steps.filter((st) => st.sequenceId === s.id).sort((a, b) => a.stepOrder - b.stepOrder),
-  }))
-
-  return NextResponse.json(result)
+  })))
 }
 
 export async function POST(req: NextRequest) {
   const { error } = requireAuth()
   if (error) return error
-
   const body = await req.json()
   const parsed = createSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
-
-  const [seq] = await db.insert(sequences).values({ name: parsed.data.name, description: parsed.data.description }).returning()
-
-  const stepRows = parsed.data.steps.map((s) => ({ ...s, sequenceId: seq.id }))
+  const [sequence] = await db.insert(sequences).values({
+    name: parsed.data.name,
+    description: parsed.data.description ?? null,
+  }).returning()
+  const stepRows = parsed.data.steps.map((step) => ({
+    ...step,
+    sequenceId: sequence.id,
+    sendWindowStart: step.sendWindowStart ?? null,
+    sendWindowEnd: step.sendWindowEnd ?? null,
+    timezone: step.timezone ?? 'America/New_York',
+  }))
   const insertedSteps = await db.insert(sequenceSteps).values(stepRows).returning()
-
-  return NextResponse.json({ ...seq, steps: insertedSteps }, { status: 201 })
+  return NextResponse.json({ ...sequence, steps: insertedSteps }, { status: 201 })
 }

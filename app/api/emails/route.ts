@@ -7,10 +7,8 @@ import { requireAuth } from '@/lib/auth'
 export async function GET(req: NextRequest) {
   const { error } = requireAuth()
   if (error) return error
-
   const leadId = req.nextUrl.searchParams.get('lead_id')
   if (!leadId) return NextResponse.json({ error: 'lead_id required' }, { status: 400 })
-
   const rows = await db.select().from(emails).where(eq(emails.leadId, leadId))
   return NextResponse.json(rows)
 }
@@ -18,12 +16,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const { error } = requireAuth()
   if (error) return error
-
   const body = await req.json()
   const fromAddress =
     body.fromAddress ??
     `${process.env.DEFAULT_FROM_NAME} <${process.env.DEFAULT_FROM_EMAIL}>`
-
   const [email] = await db
     .insert(emails)
     .values({
@@ -42,6 +38,5 @@ export async function POST(req: NextRequest) {
       requiresApproval: body.requiresApproval ?? false,
     })
     .returning()
-
-  return NextResponse.json(email, { status: 201 })
+  return NextResponse.json(email)
 }

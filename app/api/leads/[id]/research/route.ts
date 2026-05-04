@@ -5,23 +5,19 @@ import { eq } from 'drizzle-orm'
 import { requireAuth } from '@/lib/auth'
 import { generateResearch } from '@/lib/anthropic'
 
-type Params = { params: { id: string } }
+type Params = { params: Promise<{ id: string }> }
 
 export async function POST(_req: NextRequest, { params }: Params) {
   const { error } = requireAuth()
   if (error) return error
-
-  const [lead] = await db.select().from(leads).where(eq(leads.id, params.id)).limit(1)
+  const { id } = await params
+  const [lead] = await db.select().from(leads).where(eq(leads.id, id)).limit(1)
   if (!lead) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
   const notes = await generateResearch(lead)
-
   await db
     .update(leads)
     .set({ researchNotes: notes, researchUpdatedAt: new Date() })
-    .where(eq(leads.id, params.id))
-
-  await db.insert(activities).values({ leadId: params.id, type: 'research_generated', metadata: {} })
-
-  return NextResponse.json({ researchNotes: notes })
+    .where(eq(leads.id, id))
+  await db.insert(activities).values({ leadId: id, type: 'researched', metadata: {} })
+  return NextResponse.json({ notes })
 }
