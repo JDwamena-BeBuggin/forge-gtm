@@ -2,9 +2,10 @@ import { Resend } from 'resend'
 import { db } from './db/client'
 import { emails, leads, activities } from './db/schema'
 import { eq } from 'drizzle-orm'
+import { getRuntimeEnv } from './runtime-env'
 
 function getResend() {
-  const key = process.env.RESEND_API_KEY
+  const key = getRuntimeEnv().RESEND_API_KEY
   if (!key) throw new Error('RESEND_API_KEY is not set')
   return new Resend(key)
 }

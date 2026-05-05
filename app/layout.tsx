@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
 import { Sidebar } from '@/components/sidebar'
+import { getRuntimeEnv } from '@/lib/runtime-env'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -9,8 +10,9 @@ export const metadata: Metadata = {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const env = getRuntimeEnv()
   return (
-    <ClerkProvider>
+    <ClerkProvider publishableKey={env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
       <html lang="en">
         <body className="flex h-screen overflow-hidden bg-[#f5f3ee]">
           <Sidebar />

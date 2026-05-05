@@ -3,6 +3,7 @@ import { db } from '@/lib/db/client'
 import { emails } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { requireAuth } from '@/lib/auth'
+import { getRuntimeEnv } from '@/lib/runtime-env'
 
 export async function GET(req: NextRequest) {
   const { error } = requireAuth()
@@ -17,9 +18,10 @@ export async function POST(req: NextRequest) {
   const { error } = requireAuth()
   if (error) return error
   const body = await req.json()
+  const env = getRuntimeEnv()
   const fromAddress =
     body.fromAddress ??
-    `${process.env.DEFAULT_FROM_NAME} <${process.env.DEFAULT_FROM_EMAIL}>`
+    `${env.DEFAULT_FROM_NAME ?? 'Forge GTM'} <${env.DEFAULT_FROM_EMAIL ?? 'noreply@example.com'}>`
   const [email] = await db
     .insert(emails)
     .values({

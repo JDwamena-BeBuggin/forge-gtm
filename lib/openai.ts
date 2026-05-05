@@ -2,10 +2,11 @@ import OpenAI from 'openai'
 import { zodResponseFormat } from 'openai/helpers/zod'
 import { z } from 'zod'
 import type { Email, Lead, SequenceStep } from './db/schema'
+import { getRuntimeEnv } from './runtime-env'
 
-const EMAIL_MODEL = process.env.OPENAI_EMAIL_MODEL ?? 'gpt-4.1-mini'
-const RESEARCH_MODEL = process.env.OPENAI_RESEARCH_MODEL ?? 'gpt-4.1-mini'
-const SENTIMENT_MODEL = process.env.OPENAI_SENTIMENT_MODEL ?? 'gpt-4.1-mini'
+const EMAIL_MODEL = getRuntimeEnv().OPENAI_EMAIL_MODEL ?? 'gpt-4.1-mini'
+const RESEARCH_MODEL = getRuntimeEnv().OPENAI_RESEARCH_MODEL ?? 'gpt-4.1-mini'
+const SENTIMENT_MODEL = getRuntimeEnv().OPENAI_SENTIMENT_MODEL ?? 'gpt-4.1-mini'
 
 const emailOutputSchema = z.object({
   subject: z.string().min(1),
@@ -25,7 +26,7 @@ const globalForOpenAI = globalThis as unknown as {
 }
 
 function resolveApiKey(apiKey?: string) {
-  const resolved = apiKey ?? process.env.OPENAI_API_KEY
+  const resolved = apiKey ?? getRuntimeEnv().OPENAI_API_KEY
   if (!resolved) throw new Error('OPENAI_API_KEY is not set')
   return resolved
 }

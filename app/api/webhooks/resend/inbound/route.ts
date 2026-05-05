@@ -3,15 +3,18 @@ import { db } from '@/lib/db/client'
 import { leads, emails, replies, activities, sequenceEnrollments, suppressions } from '@/lib/db/schema'
 import { eq, ilike } from 'drizzle-orm'
 import { classifySentiment } from '@/lib/openai'
+import { getRuntimeEnv } from '@/lib/runtime-env'
 import { Resend } from 'resend'
 
 function getResendClient() {
-  return new Resend(process.env.RESEND_API_KEY)
+  const key = getRuntimeEnv().RESEND_API_KEY
+  if (!key) throw new Error('RESEND_API_KEY is not set')
+  return new Resend(key)
 }
 
 async function parseInboundEvent(req: NextRequest) {
   const payload = await req.text()
-  const secret = process.env.RESEND_WEBHOOK_SECRET
+  const secret = getRuntimeEnv().RESEND_WEBHOOK_SECRET
 
   if (!secret) {
     return JSON.parse(payload) as {
