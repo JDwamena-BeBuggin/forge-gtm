@@ -1,7 +1,28 @@
-type RuntimeEnv = NodeJS.ProcessEnv
+type RuntimeEnv = Record<string, string | undefined>
+
+function firstDefined(...values: Array<string | undefined>) {
+  return values.find((value) => typeof value === 'string' && value.trim())
+}
 
 function hasPrefix(value: string | undefined, prefixes: string[]) {
   return !!value && prefixes.some((prefix) => value.startsWith(prefix))
+}
+
+function isValidClerkPublishableKey(value: string | undefined) {
+  if (!value) return false
+  if (!hasPrefix(value, ['pk_', 'pk_test_', 'pk_live_'])) return false
+
+  const encoded = value.replace(/^pk_(test_|live_)?/, '')
+  if (!encoded) return false
+
+  try {
+    const normalized = encoded.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
+    const decoded = Buffer.from(padded, 'base64').toString('utf8')
+    return decoded.length > 0 && decoded.includes('.')
+  } catch {
+    return false
+  }
 }
 
 function parseMaybeJson(value?: string) {
@@ -59,62 +80,75 @@ function assignIfMissing(env: RuntimeEnv, key: string, value?: string) {
   }
 }
 
-export function hydrateRuntimeEnv(env: RuntimeEnv = process.env) {
+function toRuntimeEnv(env: NodeJS.ProcessEnv | RuntimeEnv): RuntimeEnv {
+  const runtimeEnv: RuntimeEnv = {}
+
+  for (const [key, value] of Object.entries(env)) {
+    runtimeEnv[key] = typeof value === 'string' ? value : undefined
+  }
+
+  return runtimeEnv
+}
+
+export function hydrateRuntimeEnv(env: NodeJS.ProcessEnv | RuntimeEnv = process.env) {
+  const runtimeEnv = toRuntimeEnv(env)
+  const resendSecret = firstDefined(runtimeEnv['Resend'], runtimeEnv['Resend1'])
+
   assignIfMissing(
-    env,
+    runtimeEnv,
     'DATABASE_URL',
-    coerceGroupedSecret(env.Neon, ['DATABASE_URL', 'databaseUrl', 'database_url', 'url', 'connectionString'], [
+    coerceGroupedSecret(runtimeEnv['Neon'], ['DATABASE_URL', 'databaseUrl', 'database_url', 'url', 'connectionString'], [
       (value) => value.startsWith('postgres://') || value.startsWith('postgresql://'),
     ]),
   )
 
   assignIfMissing(
-    env,
+    runtimeEnv,
     'OPENAI_API_KEY',
-    coerceGroupedSecret(env.OpenAI, ['OPENAI_API_KEY', 'apiKey', 'api_key', 'key'], [
+    coerceGroupedSecret(runtimeEnv['OpenAI'], ['OPENAI_API_KEY', 'apiKey', 'api_key', 'key'], [
       (value) => value.startsWith('sk-'),
     ]),
   )
 
   assignIfMissing(
-    env,
+    runtimeEnv,
     'RESEND_API_KEY',
-    coerceGroupedSecret(env.Resend, ['RESEND_API_KEY', 'apiKey', 'api_key', 'key'], [
+    coerceGroupedSecret(resendSecret, ['RESEND_API_KEY', 'apiKey', 'api_key', 'key'], [
       (value) => value.startsWith('re_'),
     ]),
   )
 
   assignIfMissing(
-    env,
+    runtimeEnv,
     'RESEND_WEBHOOK_SECRET',
-    coerceGroupedSecret(env.Resend, ['RESEND_WEBHOOK_SECRET', 'webhookSecret', 'webhook_secret'], [
+    coerceGroupedSecret(resendSecret, ['RESEND_WEBHOOK_SECRET', 'webhookSecret', 'webhook_secret'], [
       (value) => value.startsWith('whsec_'),
     ]),
   )
 
   assignIfMissing(
-    env,
+    runtimeEnv,
     'DEFAULT_FROM_EMAIL',
-    coerceGroupedSecret(env.Resend, ['DEFAULT_FROM_EMAIL', 'defaultFromEmail', 'fromEmail', 'from_email']),
+    coerceGroupedSecret(resendSecret, ['DEFAULT_FROM_EMAIL', 'defaultFromEmail', 'fromEmail', 'from_email']),
   )
 
   assignIfMissing(
-    env,
+    runtimeEnv,
     'CLERK_SECRET_KEY',
-    coerceGroupedSecret(env.Clerk, ['CLERK_SECRET_KEY', 'secretKey', 'secret_key'], [
+    coerceGroupedSecret(runtimeEnv['Clerk'], ['CLERK_SECRET_KEY', 'secretKey', 'secret_key'], [
       (value) => value.startsWith('sk_') || value.startsWith('sk_test_') || value.startsWith('sk_live_'),
     ]),
   )
 
   assignIfMissing(
-    env,
+    runtimeEnv,
     'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY',
-    coerceGroupedSecret(env.Clerk, ['NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY', 'publishableKey', 'publishable_key'], [
+    coerceGroupedSecret(runtimeEnv['Clerk'], ['NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY', 'publishableKey', 'publishable_key'], [
       (value) => value.startsWith('pk_') || value.startsWith('pk_test_') || value.startsWith('pk_live_'),
     ]),
   )
 
-  return env
+  return runtimeEnv
 }
 
 export function getRuntimeEnv() {
@@ -123,7 +157,7 @@ export function getRuntimeEnv() {
 
 export function hasClerkRuntimeEnv(env: RuntimeEnv = getRuntimeEnv()) {
   return hasPrefix(env.CLERK_SECRET_KEY, ['sk_', 'sk_test_', 'sk_live_'])
-    && hasPrefix(env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, ['pk_', 'pk_test_', 'pk_live_'])
+    && isValidClerkPublishableKey(env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)
 }
 
 export function hasDatabaseRuntimeEnv(env: RuntimeEnv = getRuntimeEnv()) {

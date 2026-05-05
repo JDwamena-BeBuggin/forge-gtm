@@ -8,24 +8,26 @@ const isPublicRoute = createRouteMatcher([
   '/api/webhooks/resend(.*)',
 ])
 
-const clerkHandler = clerkMiddleware((auth, req) => {
-  if (!isPublicRoute(req)) {
-    auth().protect()
-  }
-}, () => {
-  const env = getRuntimeEnv()
-  return {
-    secretKey: env.CLERK_SECRET_KEY,
-    publishableKey: env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
-  }
-})
-
 export default function middleware(req: NextRequest, event: NextFetchEvent) {
-  if (!hasClerkRuntimeEnv()) {
+  const env = getRuntimeEnv()
+  if (!hasClerkRuntimeEnv(env)) {
     return NextResponse.next()
   }
 
-  return clerkHandler(req, event)
+  try {
+    const clerkHandler = clerkMiddleware((auth, innerReq) => {
+      if (!isPublicRoute(innerReq)) {
+        auth().protect()
+      }
+    }, () => ({
+      secretKey: env.CLERK_SECRET_KEY,
+      publishableKey: env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+    }))
+
+    return clerkHandler(req, event)
+  } catch {
+    return NextResponse.next()
+  }
 }
 
 export const config = {
