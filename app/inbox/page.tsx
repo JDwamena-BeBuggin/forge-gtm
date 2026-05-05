@@ -4,7 +4,7 @@ import { eq, desc } from 'drizzle-orm'
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import { formatRelative } from '@/lib/utils'
-import { hasClerkRuntimeEnv } from '@/lib/runtime-env'
+import { hasClerkRuntimeEnv, hasDatabaseRuntimeEnv, isAuthDisabled } from '@/lib/runtime-env'
 import { SetupState } from '@/components/setup-state'
 
 const SENTIMENT_STYLES: Record<string, string> = {
@@ -17,29 +17,35 @@ const SENTIMENT_STYLES: Record<string, string> = {
 }
 
 export default async function InboxPage() {
-  if (!hasClerkRuntimeEnv()) {
+  const authDisabled = isAuthDisabled()
+  if (!authDisabled && !hasClerkRuntimeEnv()) {
     return <SetupState title="Inbox is waiting on auth setup" />
   }
 
-  const { userId } = await auth()
-  if (!userId) redirect('/sign-in')
-  const rows = await db
-    .select({
-      id: replies.id,
-      subject: replies.subject,
-      bodyText: replies.bodyText,
-      fromAddress: replies.fromAddress,
-      receivedAt: replies.receivedAt,
-      sentiment: replies.sentiment,
-      isRead: replies.isRead,
-      leadFirstName: leads.firstName,
-      leadLastName: leads.lastName,
-      leadCompany: leads.company,
-    })
-    .from(replies)
-    .leftJoin(leads, eq(replies.leadId, leads.id))
-    .orderBy(desc(replies.receivedAt))
-    .limit(100)
+  if (!authDisabled) {
+    const { userId } = await auth()
+    if (!userId) redirect('/sign-in')
+  }
+  const rows = hasDatabaseRuntimeEnv()
+    ? await db
+      .select({
+        id: replies.id,
+        subject: replies.subject,
+        bodyText: replies.bodyText,
+        fromAddress: replies.fromAddress,
+        receivedAt: replies.receivedAt,
+        sentiment: replies.sentiment,
+        isRead: replies.isRead,
+        leadFirstName: leads.firstName,
+        leadLastName: leads.lastName,
+        leadCompany: leads.company,
+      })
+      .from(replies)
+      .leftJoin(leads, eq(replies.leadId, leads.id))
+      .orderBy(desc(replies.receivedAt))
+      .limit(100)
+      .catch(() => [])
+    : []
   const unread = rows.filter((r) => !r.isRead).length
   return (
     <div className="px-8 py-8 max-w-4xl mx-auto">

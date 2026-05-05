@@ -1,7 +1,16 @@
 import { SetupState } from '@/components/setup-state'
-import { hasClerkRuntimeEnv } from '@/lib/runtime-env'
+import { hasClerkRuntimeEnv, isAuthDisabled } from '@/lib/runtime-env'
 
 export default async function SignUpPage() {
+  if (isAuthDisabled()) {
+    return (
+      <SetupState
+        title="Authentication is bypassed for testing"
+        description="Forge GTM is running in temporary no-auth mode, so account creation is disabled while the app is being tested."
+      />
+    )
+  }
+
   if (!hasClerkRuntimeEnv()) {
     return (
       <SetupState

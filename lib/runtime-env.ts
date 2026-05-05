@@ -8,6 +8,11 @@ function hasPrefix(value: string | undefined, prefixes: string[]) {
   return !!value && prefixes.some((prefix) => value.startsWith(prefix))
 }
 
+function isTruthy(value: string | undefined) {
+  if (!value) return false
+  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase())
+}
+
 function isValidClerkPublishableKey(value: string | undefined) {
   if (!value) return false
   if (!hasPrefix(value, ['pk_', 'pk_test_', 'pk_live_'])) return false
@@ -160,12 +165,25 @@ export function hasClerkRuntimeEnv(env: RuntimeEnv = getRuntimeEnv()) {
     && isValidClerkPublishableKey(env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)
 }
 
+export function isAuthDisabled(env: RuntimeEnv = getRuntimeEnv()) {
+  return isTruthy(env.DISABLE_AUTH)
+}
+
 export function hasDatabaseRuntimeEnv(env: RuntimeEnv = getRuntimeEnv()) {
-  return hasPrefix(env.DATABASE_URL, ['postgres://', 'postgresql://'])
+  const value = env.DATABASE_URL
+  if (!hasPrefix(value, ['postgres://', 'postgresql://'])) return false
+
+  try {
+    const url = new URL(value as string)
+    return Boolean(url.username && url.hostname && url.pathname && url.pathname !== '/')
+  } catch {
+    return false
+  }
 }
 
 export function getRuntimeEnvStatus(env: RuntimeEnv = getRuntimeEnv()) {
   return {
+    authDisabled: isAuthDisabled(env),
     clerk: hasClerkRuntimeEnv(env),
     database: hasDatabaseRuntimeEnv(env),
     openai: hasPrefix(env.OPENAI_API_KEY, ['sk-']),

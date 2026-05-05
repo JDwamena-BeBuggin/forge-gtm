@@ -7,7 +7,7 @@ import { formatRelative, STATUS_LABELS, type GtmStatus } from '@/lib/utils'
 import { TrendingUp, Mail, MousePointer, MessageSquare, Users } from 'lucide-react'
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
-import { hasClerkRuntimeEnv } from '@/lib/runtime-env'
+import { hasClerkRuntimeEnv, hasDatabaseRuntimeEnv, isAuthDisabled } from '@/lib/runtime-env'
 import { SetupState } from '@/components/setup-state'
 
 const PIPELINE: GtmStatus[] = ['new', 'researching', 'queued', 'contacted', 'engaged', 'qualified', 'closed_won', 'closed_lost']
@@ -64,6 +64,28 @@ async function getStats() {
   }
 }
 
+function getDemoStats() {
+  return {
+    byStatus: {
+      new: 42,
+      researching: 18,
+      queued: 31,
+      contacted: 26,
+      engaged: 11,
+      qualified: 4,
+      closed_won: 1,
+      closed_lost: 2,
+    } as Record<string, number>,
+    total: 135,
+    sent: 84,
+    opens: 39,
+    replies: 12,
+    openRate: '46.4',
+    replyRate: '14.3',
+    recentActivity: [],
+  }
+}
+
 function KpiCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="bg-white rounded-xl border border-[#e8e4dc] p-5">
@@ -77,7 +99,8 @@ function KpiCard({ icon, label, value }: { icon: React.ReactNode; label: string;
 }
 
 export default async function DashboardPage() {
-  if (!hasClerkRuntimeEnv()) {
+  const authDisabled = isAuthDisabled()
+  if (!authDisabled && !hasClerkRuntimeEnv()) {
     return (
       <SetupState
         title="Authentication still needs to be finalized"
@@ -86,11 +109,23 @@ export default async function DashboardPage() {
     )
   }
 
-  const { userId } = await auth()
-  if (!userId) redirect('/sign-in')
-  const stats = await getStats()
+  if (!authDisabled) {
+    const { userId } = await auth()
+    if (!userId) redirect('/sign-in')
+  }
+  const stats = hasDatabaseRuntimeEnv() ? await getStats().catch(() => getDemoStats()) : getDemoStats()
   return (
     <div className="px-8 py-8 max-w-6xl mx-auto">
+      {authDisabled && (
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Test mode is enabled. Authentication is temporarily bypassed for app verification.
+        </div>
+      )}
+      {!hasDatabaseRuntimeEnv() && (
+        <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          Database demo mode is enabled. These dashboard metrics are sample data until the Neon connection string is corrected.
+        </div>
+      )}
       <div className="mb-8">
         <h1 className="text-3xl font-serif font-light text-[#1a1814]">Dashboard</h1>
         <p className="text-sm text-[#6b6560] mt-1">{stats.total.toLocaleString()} leads in pipeline</p>

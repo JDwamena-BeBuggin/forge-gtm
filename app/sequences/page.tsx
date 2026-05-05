@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm'
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import { SequencesClient } from '@/components/sequences-client'
-import { hasClerkRuntimeEnv } from '@/lib/runtime-env'
+import { hasClerkRuntimeEnv, hasDatabaseRuntimeEnv, isAuthDisabled } from '@/lib/runtime-env'
 import { SetupState } from '@/components/setup-state'
 
 async function getData() {
@@ -29,13 +29,45 @@ async function getData() {
   }))
 }
 
+function getDemoSequences() {
+  const now = new Date()
+  return [
+    {
+      id: 'demo-seq-1',
+      name: 'Warm Intro Follow-up',
+      description: 'Three-step sequence for recent warm leads.',
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+      steps: [
+        {
+          id: 'demo-step-1',
+          sequenceId: 'demo-seq-1',
+          stepOrder: 1,
+          delayDays: 0,
+          subjectPrompt: 'Personal intro referencing the lead company',
+          bodyPrompt: 'Short, relevant intro with one clear CTA',
+          sendWindowStart: '09:00',
+          sendWindowEnd: '16:00',
+          timezone: 'America/New_York',
+        },
+      ],
+      activeEnrollments: 8,
+      totalEnrollments: 12,
+    },
+  ]
+}
+
 export default async function SequencesPage() {
-  if (!hasClerkRuntimeEnv()) {
+  const authDisabled = isAuthDisabled()
+  if (!authDisabled && !hasClerkRuntimeEnv()) {
     return <SetupState title="Sequences view is waiting on auth setup" />
   }
 
-  const { userId } = await auth()
-  if (!userId) redirect('/sign-in')
-  const data = await getData()
+  if (!authDisabled) {
+    const { userId } = await auth()
+    if (!userId) redirect('/sign-in')
+  }
+  const data = hasDatabaseRuntimeEnv() ? await getData().catch(() => getDemoSequences()) : getDemoSequences()
   return <SequencesClient sequences={data} />
 }

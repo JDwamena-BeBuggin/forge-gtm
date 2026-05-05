@@ -1,6 +1,6 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { NextResponse, type NextRequest, type NextFetchEvent } from 'next/server'
-import { getRuntimeEnv, hasClerkRuntimeEnv } from '@/lib/runtime-env'
+import { getRuntimeEnv, hasClerkRuntimeEnv, isAuthDisabled } from '@/lib/runtime-env'
 
 const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
@@ -10,7 +10,7 @@ const isPublicRoute = createRouteMatcher([
 
 export default function middleware(req: NextRequest, event: NextFetchEvent) {
   const env = getRuntimeEnv()
-  if (!hasClerkRuntimeEnv(env)) {
+  if (isAuthDisabled(env) || !hasClerkRuntimeEnv(env)) {
     return NextResponse.next()
   }
 

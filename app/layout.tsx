@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
 import { Sidebar } from '@/components/sidebar'
-import { getRuntimeEnv, hasClerkRuntimeEnv } from '@/lib/runtime-env'
+import { getRuntimeEnv, hasClerkRuntimeEnv, isAuthDisabled } from '@/lib/runtime-env'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const env = getRuntimeEnv()
-  const authEnabled = hasClerkRuntimeEnv(env)
+  const authEnabled = !isAuthDisabled(env) && hasClerkRuntimeEnv(env)
   const content = (
     <html lang="en">
       <body className="flex h-screen overflow-hidden bg-[#f5f3ee]">
