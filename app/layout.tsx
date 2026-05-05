@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
 import { Sidebar } from '@/components/sidebar'
-import { getRuntimeEnv } from '@/lib/runtime-env'
+import { getRuntimeEnv, hasClerkRuntimeEnv } from '@/lib/runtime-env'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -11,16 +11,25 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const env = getRuntimeEnv()
+  const authEnabled = hasClerkRuntimeEnv(env)
+  const content = (
+    <html lang="en">
+      <body className="flex h-screen overflow-hidden bg-[#f5f3ee]">
+        <Sidebar authEnabled={authEnabled} />
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
+      </body>
+    </html>
+  )
+
+  if (!authEnabled) {
+    return content
+  }
+
   return (
     <ClerkProvider publishableKey={env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
-      <html lang="en">
-        <body className="flex h-screen overflow-hidden bg-[#f5f3ee]">
-          <Sidebar />
-          <main className="flex-1 overflow-y-auto">
-            {children}
-          </main>
-        </body>
-      </html>
+      {content}
     </ClerkProvider>
   )
 }

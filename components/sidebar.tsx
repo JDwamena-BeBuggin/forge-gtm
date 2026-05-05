@@ -15,7 +15,7 @@ const NAV = [
   { href: '/inbox', label: 'Inbox', icon: Inbox },
 ]
 
-export function Sidebar() {
+export function Sidebar({ authEnabled }: { authEnabled: boolean }) {
   const pathname = usePathname()
 
   return (
@@ -54,8 +54,14 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="px-4 py-4 border-t border-[#2a2620] flex items-center gap-3">
-        <UserButton afterSignOutUrl="/sign-in" />
-        <span className="text-xs text-[#6b6560] font-mono truncate">joshdwamena</span>
+        {authEnabled ? (
+          <>
+            <UserButton afterSignOutUrl="/sign-in" />
+            <span className="text-xs text-[#6b6560] font-mono truncate">joshdwamena</span>
+          </>
+        ) : (
+          <span className="text-xs text-[#9b9589]">Auth setup required</span>
+        )}
       </div>
     </aside>
   )

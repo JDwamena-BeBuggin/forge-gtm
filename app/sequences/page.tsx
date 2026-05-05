@@ -4,6 +4,8 @@ import { sql } from 'drizzle-orm'
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import { SequencesClient } from '@/components/sequences-client'
+import { hasClerkRuntimeEnv } from '@/lib/runtime-env'
+import { SetupState } from '@/components/setup-state'
 
 async function getData() {
   const [seqs, steps, enrollCounts] = await Promise.all([
@@ -28,6 +30,10 @@ async function getData() {
 }
 
 export default async function SequencesPage() {
+  if (!hasClerkRuntimeEnv()) {
+    return <SetupState title="Sequences view is waiting on auth setup" />
+  }
+
   const { userId } = await auth()
   if (!userId) redirect('/sign-in')
   const data = await getData()

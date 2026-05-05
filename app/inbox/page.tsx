@@ -4,6 +4,8 @@ import { eq, desc } from 'drizzle-orm'
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import { formatRelative } from '@/lib/utils'
+import { hasClerkRuntimeEnv } from '@/lib/runtime-env'
+import { SetupState } from '@/components/setup-state'
 
 const SENTIMENT_STYLES: Record<string, string> = {
   positive: 'bg-green-50 text-green-700',
@@ -15,6 +17,10 @@ const SENTIMENT_STYLES: Record<string, string> = {
 }
 
 export default async function InboxPage() {
+  if (!hasClerkRuntimeEnv()) {
+    return <SetupState title="Inbox is waiting on auth setup" />
+  }
+
   const { userId } = await auth()
   if (!userId) redirect('/sign-in')
   const rows = await db

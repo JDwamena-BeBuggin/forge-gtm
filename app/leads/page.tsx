@@ -4,6 +4,8 @@ import { sql, and, eq, ilike, or, desc, asc } from 'drizzle-orm'
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import { LeadsClient } from '@/components/leads-client'
+import { hasClerkRuntimeEnv } from '@/lib/runtime-env'
+import { SetupState } from '@/components/setup-state'
 
 async function getLeads(params: {
   search?: string
@@ -77,6 +79,10 @@ export default async function LeadsPage({
 }: {
   searchParams: Promise<{ search?: string; status?: string; segment?: string; sort?: string; order?: string; page?: string }>
 }) {
+  if (!hasClerkRuntimeEnv()) {
+    return <SetupState title="Leads view is waiting on auth setup" />
+  }
+
   const { userId } = await auth()
   if (!userId) redirect('/sign-in')
   const sp = await searchParams

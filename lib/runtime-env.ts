@@ -1,5 +1,9 @@
 type RuntimeEnv = NodeJS.ProcessEnv
 
+function hasPrefix(value: string | undefined, prefixes: string[]) {
+  return !!value && prefixes.some((prefix) => value.startsWith(prefix))
+}
+
 function parseMaybeJson(value?: string) {
   if (!value) return null
   const trimmed = value.trim()
@@ -115,4 +119,24 @@ export function hydrateRuntimeEnv(env: RuntimeEnv = process.env) {
 
 export function getRuntimeEnv() {
   return hydrateRuntimeEnv(process.env)
+}
+
+export function hasClerkRuntimeEnv(env: RuntimeEnv = getRuntimeEnv()) {
+  return hasPrefix(env.CLERK_SECRET_KEY, ['sk_', 'sk_test_', 'sk_live_'])
+    && hasPrefix(env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, ['pk_', 'pk_test_', 'pk_live_'])
+}
+
+export function hasDatabaseRuntimeEnv(env: RuntimeEnv = getRuntimeEnv()) {
+  return hasPrefix(env.DATABASE_URL, ['postgres://', 'postgresql://'])
+}
+
+export function getRuntimeEnvStatus(env: RuntimeEnv = getRuntimeEnv()) {
+  return {
+    clerk: hasClerkRuntimeEnv(env),
+    database: hasDatabaseRuntimeEnv(env),
+    openai: hasPrefix(env.OPENAI_API_KEY, ['sk-']),
+    resendApi: hasPrefix(env.RESEND_API_KEY, ['re_']),
+    resendWebhook: hasPrefix(env.RESEND_WEBHOOK_SECRET, ['whsec_']),
+    defaultFromEmail: Boolean(env.DEFAULT_FROM_EMAIL),
+  }
 }

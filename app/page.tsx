@@ -7,6 +7,8 @@ import { formatRelative, STATUS_LABELS, type GtmStatus } from '@/lib/utils'
 import { TrendingUp, Mail, MousePointer, MessageSquare, Users } from 'lucide-react'
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
+import { hasClerkRuntimeEnv } from '@/lib/runtime-env'
+import { SetupState } from '@/components/setup-state'
 
 const PIPELINE: GtmStatus[] = ['new', 'researching', 'queued', 'contacted', 'engaged', 'qualified', 'closed_won', 'closed_lost']
 
@@ -75,6 +77,15 @@ function KpiCard({ icon, label, value }: { icon: React.ReactNode; label: string;
 }
 
 export default async function DashboardPage() {
+  if (!hasClerkRuntimeEnv()) {
+    return (
+      <SetupState
+        title="Authentication still needs to be finalized"
+        description="Forge GTM is deployed, but Clerk is not booting correctly in production yet. Once the live Clerk keys are available to the worker, the dashboard will load normally."
+      />
+    )
+  }
+
   const { userId } = await auth()
   if (!userId) redirect('/sign-in')
   const stats = await getStats()
