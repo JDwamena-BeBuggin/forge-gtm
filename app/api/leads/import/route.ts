@@ -2,31 +2,71 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db/client'
 import { leads, activities } from '@/lib/db/schema'
 import { requireAuth } from '@/lib/auth'
+import { mapImportRows, parseLeadImportBuffer } from '@/lib/lead-import'
+
+async function readImportRows(req: NextRequest) {
+  const contentType = req.headers.get('content-type') ?? ''
+
+  if (contentType.includes('multipart/form-data')) {
+    const formData = await req.formData()
+    const file = formData.get('file')
+    if (!(file instanceof File)) {
+      throw new Error('file is required')
+    }
+
+    const buffer = await file.arrayBuffer()
+    return {
+      rows: parseLeadImportBuffer(buffer, file.name),
+      source: file.name.endsWith('.csv') ? 'csv_upload' : 'spreadsheet_upload',
+      filename: file.name,
+    }
+  }
+
+  const body = await req.json()
+  if (!Array.isArray(body.rows) || body.rows.length === 0) {
+    throw new Error('rows array required')
+  }
+
+  return {
+    rows: mapImportRows(body.rows),
+    source: 'json_import',
+    filename: null,
+  }
+}
 
 export async function POST(req: NextRequest) {
   const { error } = requireAuth()
   if (error) return error
-  const body = await req.json()
-  if (!Array.isArray(body.rows) || body.rows.length === 0) {
-    return NextResponse.json({ error: 'rows array required' }, { status: 400 })
+  let importPayload
+  try {
+    importPayload = await readImportRows(req)
+  } catch (readError) {
+    return NextResponse.json(
+      { error: readError instanceof Error ? readError.message : 'Import payload is invalid' },
+      { status: 400 },
+    )
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const toInsert = body.rows
-    .filter((r: any) => r.email)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .map((r: any) => ({
-      email: r.email.toLowerCase().trim(),
-      firstName: r.first_name ?? r.firstName ?? null,
-      lastName: r.last_name ?? r.lastName ?? null,
-      company: r.company ?? null,
-      title: r.title ?? null,
-      linkedinUrl: r.linkedin_url ?? r.linkedinUrl ?? null,
-      website: r.website ?? null,
-      phone: r.phone ?? null,
-      industry: r.industry ?? null,
-      segment: r.segment ?? null,
-      source: r.source ?? 'import',
-    }))
+
+  const toInsert = importPayload.rows.map((row) => ({
+    email: row.email,
+    firstName: row.first_name || null,
+    lastName: row.last_name || null,
+    company: row.company || null,
+    title: row.title || null,
+    linkedinUrl: row.linkedin_url || null,
+    website: row.website || null,
+    phone: row.phone || null,
+    industry: row.industry || null,
+    segment: row.segment || null,
+    source: row.source || 'import',
+    notes: row.notes || null,
+    dealValue: row.deal_value ? row.deal_value.replace(/[^0-9.-]/g, '') || null : null,
+  }))
+
+  if (toInsert.length === 0) {
+    return NextResponse.json({ error: 'No valid rows with email addresses were found' }, { status: 400 })
+  }
+
   const BATCH = 100
   let inserted = 0
   let skipped = 0
@@ -41,9 +81,9 @@ export async function POST(req: NextRequest) {
     skipped += chunk.length - result.length
     if (result.length > 0) {
       await db.insert(activities).values(
-        result.map((r) => ({ leadId: r.id, type: 'imported' as const, metadata: { source: 'csv_import' } })),
+        result.map((r) => ({ leadId: r.id, type: 'imported' as const, metadata: { source: importPayload.source } })),
       )
     }
   }
-  return NextResponse.json({ inserted, skipped })
+  return NextResponse.json({ inserted, skipped, filename: importPayload.filename })
 }

@@ -3,7 +3,7 @@ import { db } from '@/lib/db/client'
 import { leads, sequenceSteps, emails } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { requireAuth } from '@/lib/auth'
-import { generateEmail } from '@/lib/anthropic'
+import { generateEmail } from '@/lib/openai'
 import { bodyToHtml } from '@/lib/utils'
 
 const AD_HOC_STEP = {
@@ -36,17 +36,14 @@ export async function POST(req: NextRequest) {
     .from(emails)
     .where(eq(emails.leadId, leadId))
     .limit(5)
-  const generated = await generateEmail(lead, step, priorEmails, customPrompt)
-  const fromAddress = `${process.env.DEFAULT_FROM_NAME ?? 'Forge GTM'} <${process.env.DEFAULT_FROM_EMAIL ?? 'noreply@example.com'}>`
-  const [draft] = await db.insert(emails).values({
-    leadId,
-    stepId: stepId ?? null,
+  const generated = await generateEmail(lead, step, priorEmails, customPrompt, {
+    senderName: process.env.DEFAULT_FROM_NAME ?? 'Forge GTM',
+  })
+  return NextResponse.json({
     subject: generated.subject,
-    bodyHtml: bodyToHtml(generated.body),
     bodyText: generated.body,
+    bodyHtml: bodyToHtml(generated.body),
     generationModel: generated.model,
     generationPrompt: generated.prompt,
-    fromAddress,
-  }).returning()
-  return NextResponse.json(draft)
+  })
 }

@@ -1,21 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db/client'
-import { emails, leads, replies, activities, sequenceEnrollments, suppressions } from '@/lib/db/schema'
+import { emails, leads, activities, suppressions } from '@/lib/db/schema'
 import { eq, sql } from 'drizzle-orm'
-import { classifySentiment } from '@/lib/anthropic'
+import { Resend } from 'resend'
 
-async function verifySignature(req: NextRequest): Promise<boolean> {
-  const secret = process.env.RESEND_WEBHOOK_SECRET
-  if (!secret) return true // Skip in dev
-  // TODO: implement HMAC-SHA256 verification against svix headers
-  return true
+function getResendClient() {
+  return new Resend(process.env.RESEND_API_KEY)
 }
 
-export async function POST(req: NextRequest) {
-  if (!(await verifySignature(req))) {
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+async function parseWebhookEvent(req: NextRequest) {
+  const payload = await req.text()
+  const secret = process.env.RESEND_WEBHOOK_SECRET
+  if (!secret) {
+    return JSON.parse(payload) as {
+      type: string
+      data: {
+        email_id?: string
+        message_id?: string
+        to?: string[]
+        subject?: string
+        bounce?: { message?: string }
+      }
+    }
   }
-  const { type, data } = await req.json() as {
+
+  const id = req.headers.get('svix-id')
+  const timestamp = req.headers.get('svix-timestamp')
+  const signature = req.headers.get('svix-signature')
+
+  if (!id || !timestamp || !signature) {
+    throw new Error('Missing Resend webhook signature headers')
+  }
+
+  return getResendClient().webhooks.verify({
+    payload,
+    headers: { id, timestamp, signature },
+    webhookSecret: secret,
+  }) as {
     type: string
     data: {
       email_id?: string
@@ -23,10 +44,29 @@ export async function POST(req: NextRequest) {
       to?: string[]
       subject?: string
       bounce?: { message?: string }
-      from?: string
-      html?: string
-      text?: string
-      headers?: Record<string, string>[]
+    }
+  }
+}
+
+export async function POST(req: NextRequest) {
+  let event
+  try {
+    event = await parseWebhookEvent(req)
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Invalid signature' },
+      { status: 401 },
+    )
+  }
+
+  const { type, data } = event as {
+    type: string
+    data: {
+      email_id?: string
+      message_id?: string
+      to?: string[]
+      subject?: string
+      bounce?: { message?: string }
     }
   }
   async function getEmail() {
@@ -40,7 +80,6 @@ export async function POST(req: NextRequest) {
       const email = await getEmail()
       if (email) {
         await db.update(emails).set({ status: 'sent', sentAt: new Date() }).where(eq(emails.id, email.id))
-        await db.update(leads).set({ lastContactedAt: new Date(), totalEmailsSent: sql`${leads.totalEmailsSent} + 1` }).where(eq(leads.id, email.leadId))
       }
       break
     }
@@ -55,6 +94,10 @@ export async function POST(req: NextRequest) {
           openedAt: email.openedAt ?? new Date(),
           openCount: sql`${emails.openCount} + 1`,
         }).where(eq(emails.id, email.id))
+        await db
+          .update(leads)
+          .set({ totalOpens: sql`${leads.totalOpens} + 1` })
+          .where(eq(leads.id, email.leadId))
         await db.insert(activities).values({ leadId: email.leadId, type: 'email_opened', metadata: { emailId: email.id } })
       }
       break
@@ -66,6 +109,10 @@ export async function POST(req: NextRequest) {
           clickedAt: email.clickedAt ?? new Date(),
           clickCount: sql`${emails.clickCount} + 1`,
         }).where(eq(emails.id, email.id))
+        await db
+          .update(leads)
+          .set({ totalClicks: sql`${leads.totalClicks} + 1` })
+          .where(eq(leads.id, email.leadId))
         await db.insert(activities).values({ leadId: email.leadId, type: 'email_clicked', metadata: { emailId: email.id } })
       }
       break

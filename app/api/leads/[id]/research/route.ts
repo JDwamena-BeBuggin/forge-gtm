@@ -3,7 +3,7 @@ import { db } from '@/lib/db/client'
 import { leads, activities } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { requireAuth } from '@/lib/auth'
-import { generateResearch } from '@/lib/anthropic'
+import { generateResearch } from '@/lib/openai'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -18,6 +18,6 @@ export async function POST(_req: NextRequest, { params }: Params) {
     .update(leads)
     .set({ researchNotes: notes, researchUpdatedAt: new Date() })
     .where(eq(leads.id, id))
-  await db.insert(activities).values({ leadId: id, type: 'researched', metadata: {} })
-  return NextResponse.json({ notes })
+  await db.insert(activities).values({ leadId: id, type: 'research_generated', metadata: {} })
+  return NextResponse.json({ researchNotes: notes })
 }

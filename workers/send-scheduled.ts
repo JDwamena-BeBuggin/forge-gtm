@@ -1,7 +1,7 @@
 /**
  * Cloudflare Cron Worker — runs every 5 minutes.
  * Picks up sequence_enrollments with next_send_at <= now(),
- * generates a personalised email via Claude, and sends via Resend.
+ * generates a personalised email via OpenAI, and sends via Resend.
  */
 
 import { neon } from '@neondatabase/serverless'
@@ -9,29 +9,22 @@ import { drizzle } from 'drizzle-orm/neon-http'
 import * as schema from '../lib/db/schema'
 import { and, lte, gte, eq, sql } from 'drizzle-orm'
 import { addDays } from 'date-fns'
-import Anthropic from '@anthropic-ai/sdk'
 import { Resend } from 'resend'
+import { generateEmail } from '../lib/openai'
+import { bodyToHtml } from '../lib/utils'
 
 interface Env {
   DATABASE_URL: string
-  ANTHROPIC_API_KEY: string
+  OPENAI_API_KEY: string
   RESEND_API_KEY: string
   DEFAULT_FROM_EMAIL: string
   DEFAULT_FROM_NAME: string
-}
-
-function bodyToHtml(text: string): string {
-  return `<div style="font-family:Georgia,serif;font-size:15px;line-height:1.6;color:#1a1814;max-width:600px">${text
-    .split('\n')
-    .map((l) => `<p style="margin:0 0 12px">${l}</p>`)
-    .join('')}</div>`
 }
 
 export default {
   async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
     const sqlClient = neon(env.DATABASE_URL)
     const db = drizzle(sqlClient, { schema })
-    const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY })
     const resend = new Resend(env.RESEND_API_KEY)
 
     const now = new Date()
@@ -101,41 +94,11 @@ export default {
           .from(schema.emails)
           .where(eq(schema.emails.leadId, lead.id))
           .limit(5)
-
-        const priorText = priorEmails.length
-          ? priorEmails.map((e) => `--- ${e.sentAt?.toISOString()} ---\nSubject: ${e.subject}\n${e.bodyText ?? ''}`).join('\n\n')
-          : 'None'
-
-        const prompt = `Write step ${step.stepOrder} of a sequence for this lead.
-
-LEAD:
-- Name: ${lead.firstName ?? ''} ${lead.lastName ?? ''}
-- Company: ${lead.company ?? 'Unknown'}
-- Industry: ${lead.industry ?? 'Unknown'}
-- Segment: ${lead.segment ?? 'Unknown'}
-
-RESEARCH:
-${lead.researchNotes ?? 'No research available.'}
-
-PRIOR EMAILS IN THREAD:
-${priorText}
-
-INSTRUCTION:
-${step.bodyPrompt}
-
-Return ONLY valid JSON: { "subject": "...", "body": "..." }`
-
-        const msg = await anthropic.messages.create({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1024,
-          system: `You write concise, professional 1:1 outreach emails. 80-150 words. No placeholders. Personal opener. One clear ask.`,
-          messages: [{ role: 'user', content: prompt }],
+        const generated = await generateEmail(lead, step, priorEmails, undefined, {
+          apiKey: env.OPENAI_API_KEY,
+          senderName: env.DEFAULT_FROM_NAME,
         })
-
-        const raw = msg.content[0].type === 'text' ? msg.content[0].text : ''
-        const jsonMatch = raw.match(/\{[\s\S]*\}/)
-        if (!jsonMatch) continue
-        const { subject, body } = JSON.parse(jsonMatch[0]) as { subject: string; body: string }
+        const { subject, body } = generated
 
         const fromAddress = `${env.DEFAULT_FROM_NAME} <${env.DEFAULT_FROM_EMAIL}>`
 
@@ -149,8 +112,8 @@ Return ONLY valid JSON: { "subject": "...", "body": "..." }`
             subject,
             bodyHtml: bodyToHtml(body),
             bodyText: body,
-            generationModel: 'claude-sonnet-4-6',
-            generationPrompt: prompt,
+            generationModel: generated.model,
+            generationPrompt: generated.prompt,
             status: 'sending',
             fromAddress,
           })

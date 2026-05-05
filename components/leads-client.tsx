@@ -80,9 +80,9 @@ export function LeadsClient({
             onClick={() => document.getElementById('csv-import')?.click()}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[#d4cfc5] rounded-lg hover:bg-[#ece8de] transition-colors"
           >
-            <Upload size={14} /> Import CSV
+            <Upload size={14} /> Import Leads
           </button>
-          <input id="csv-import" type="file" accept=".csv,.xlsx" className="hidden" onChange={handleImport} />
+          <input id="csv-import" type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImport} />
           <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[#c2410c] text-white rounded-lg hover:bg-[#a83409] transition-colors">
             <Plus size={14} /> Add Lead
           </button>
@@ -246,21 +246,21 @@ function Th({ label, children, onClick }: { label: string; children?: React.Reac
 async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
   const file = e.target.files?.[0]
   if (!file) return
-  // Client-side CSV parse → POST /api/leads/import
-  const text = await file.text()
-  const lines = text.trim().split('\n')
-  const headers = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/\s+/g, '_'))
-  const rows = lines.slice(1).map((line) => {
-    const vals = line.split(',')
-    return Object.fromEntries(headers.map((h, i) => [h, vals[i]?.trim() ?? '']))
-  })
+  const formData = new FormData()
+  formData.append('file', file)
 
   const res = await fetch('/api/leads/import', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ rows }),
+    body: formData,
   })
   const data = await res.json()
+  if (!res.ok) {
+    alert(data.error ?? 'Import failed')
+    e.target.value = ''
+    return
+  }
+
   alert(`Imported ${data.inserted} leads, skipped ${data.skipped} duplicates`)
+  e.target.value = ''
   window.location.reload()
 }

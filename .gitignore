@@ -28,3 +28,5 @@ lib/db/migrations/meta/
 
 # Cloudflare
 .wrangler/
+.open-next/
+.vercel/

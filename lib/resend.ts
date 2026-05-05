@@ -23,7 +23,7 @@ export async function sendEmail(emailId: string): Promise<void> {
     subject: email.subject,
     html: email.bodyHtml,
     text: email.bodyText ?? undefined,
-    reply_to: email.replyTo ?? undefined,
+    replyTo: email.replyTo ?? undefined,
     headers: email.threadId ? { 'In-Reply-To': email.threadId } : {},
     tags: [
       { name: 'lead_id', value: lead.id },
