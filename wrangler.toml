@@ -13,7 +13,6 @@ binding = "ASSETS"
 [vars]
 SENDING_DOMAIN = "outreach.yourdomain.com"
 DEFAULT_FROM_NAME = "Your Name"
-DISABLE_AUTH = "true"
 
 # Secrets — set these in the Cloudflare dashboard under Workers > Settings > Variables:
 # DATABASE_URL
