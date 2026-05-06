@@ -1,19 +1,4 @@
-import { auth } from '@clerk/nextjs/server'
-import { redirect } from 'next/navigation'
-import { SetupState } from '@/components/setup-state'
-import { hasClerkRuntimeEnv, isAuthDisabled } from '@/lib/runtime-env'
-
 export default async function SequencesPage() {
-  const authDisabled = isAuthDisabled()
-  if (!authDisabled && !hasClerkRuntimeEnv()) {
-    return <SetupState title="Sequences view is waiting on auth setup" />
-  }
-
-  if (!authDisabled) {
-    const { userId } = await auth()
-    if (!userId) redirect('/sign-in')
-  }
-
   return (
     <div className="px-8 py-8 max-w-5xl mx-auto">
       <div className="mb-6">

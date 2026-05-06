@@ -1,20 +1,14 @@
-import { auth } from '@clerk/nextjs/server'
-import { redirect } from 'next/navigation'
 import { Sparkles, ScanSearch, ShieldCheck } from 'lucide-react'
-import { SetupState } from '@/components/setup-state'
 import { demoEnrichmentQueue, demoLeads } from '@/lib/gtm-demo'
-import { hasClerkRuntimeEnv, isAuthDisabled } from '@/lib/runtime-env'
+import { getLiveGtmSnapshot } from '@/lib/gtm-live'
+
+export const dynamic = 'force-dynamic'
 
 export default async function EnrichmentPage() {
-  const authDisabled = isAuthDisabled()
-  if (!authDisabled && !hasClerkRuntimeEnv()) {
-    return <SetupState title="Enrichment is waiting on auth setup" />
-  }
-
-  if (!authDisabled) {
-    const { userId } = await auth()
-    if (!userId) redirect('/sign-in')
-  }
+  const liveSnapshot = await getLiveGtmSnapshot()
+  const queue = liveSnapshot?.enrichmentQueue ?? demoEnrichmentQueue
+  const leadRows = liveSnapshot?.priorityLeads ?? demoLeads
+  const coverage = liveSnapshot?.overview.enrichmentCoverage ?? 68
 
   return (
     <div className="px-8 py-8 max-w-7xl mx-auto">
@@ -23,13 +17,13 @@ export default async function EnrichmentPage() {
           <p className="text-xs uppercase tracking-[0.22em] text-[#9b9589]">Lead Intelligence</p>
           <h1 className="mt-2 font-serif text-4xl font-light text-[#1a1814]">Enrichment</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-[#6b6560]">
-            Use enrichment to close the gap between a raw contact list and a GTM-ready pipeline. This page is meant to surface what the team still needs to know before sorting or acting on leads.
+            Use enrichment to close the gap between a raw contact list and a GTM-ready pipeline. This page surfaces what still needs to be known before sorting or acting on leads.
           </p>
         </div>
         <div className="rounded-2xl border border-[#e8e4dc] bg-white px-5 py-4">
           <p className="text-xs uppercase tracking-wide text-[#9b9589]">Coverage target</p>
-          <p className="mt-2 font-serif text-3xl font-light text-[#1a1814]">85%</p>
-          <p className="text-sm text-[#6b6560]">GTM-ready lead coverage</p>
+          <p className="mt-2 font-serif text-3xl font-light text-[#1a1814]">{coverage}%</p>
+          <p className="text-sm text-[#6b6560]">current GTM-ready coverage</p>
         </div>
       </div>
 
@@ -43,7 +37,7 @@ export default async function EnrichmentPage() {
             <Sparkles size={18} className="text-[#9b9589]" />
           </div>
           <div className="space-y-4">
-            {demoEnrichmentQueue.map((item) => (
+            {queue.map((item) => (
               <div key={item.company} className="rounded-xl border border-[#efeae1] bg-[#faf9f6] p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div>
@@ -77,7 +71,7 @@ export default async function EnrichmentPage() {
             <ScanSearch size={18} className="text-[#9b9589]" />
           </div>
           <div className="space-y-3">
-            {demoLeads.map((lead) => (
+            {leadRows.map((lead) => (
               <div key={lead.id} className="rounded-xl border border-[#efeae1] p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>

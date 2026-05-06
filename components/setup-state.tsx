@@ -30,7 +30,6 @@ export function SetupState({
         <h1 className="font-serif text-3xl font-light text-[#1a1814]">{title}</h1>
         <p className="mt-3 text-sm leading-6 text-[#6b6560]">{description}</p>
         <div className="mt-6 space-y-3">
-          <StateRow label="Clerk authentication" ok={status.clerk} />
           <StateRow label="Neon database" ok={status.database} />
           <StateRow label="OpenAI generation" ok={status.openai} />
           <StateRow label="Resend API" ok={status.resendApi} />

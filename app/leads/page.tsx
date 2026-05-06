@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation'
 import { StatusPill } from '@/components/status-pill'
-import { SetupState } from '@/components/setup-state'
 import { formatRelative, type GtmStatus } from '@/lib/utils'
-import { hasClerkRuntimeEnv, hasDatabaseRuntimeEnv, isAuthDisabled } from '@/lib/runtime-env'
+import { hasDatabaseRuntimeEnv } from '@/lib/runtime-env'
+
+export const dynamic = 'force-dynamic'
 
 const DEMO_LEADS = [
   {
@@ -75,20 +76,8 @@ export default async function LeadsPage({
 }: {
   searchParams: Promise<{ search?: string; status?: string; segment?: string; sort?: string; order?: string; page?: string }>
 }) {
-  const authDisabled = isAuthDisabled()
-
-  if (!authDisabled && !hasClerkRuntimeEnv()) {
-    return <SetupState title="Leads view is waiting on auth setup" />
-  }
-
   if (!hasDatabaseRuntimeEnv()) {
     return <LeadsDemoView />
-  }
-
-  if (!authDisabled) {
-    const { auth } = await import('@clerk/nextjs/server')
-    const { userId } = await auth()
-    if (!userId) redirect('/sign-in')
   }
 
   const sp = await searchParams
@@ -105,7 +94,8 @@ export default async function LeadsPage({
 
   const limit = 50
   const offset = (requestedPage - 1) * limit
-  const conditions: ReturnType<typeof eq>[] = []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const conditions: any[] = []
 
   if (sp.status) conditions.push(eq(leadsTable.gtmStatus, sp.status))
   if (sp.segment) conditions.push(eq(leadsTable.segment, sp.segment))
@@ -135,7 +125,7 @@ export default async function LeadsPage({
   const sortCol = SORT_MAP[sort] ?? leadsTable.createdAt
   const orderFn = order === 'asc' ? asc : desc
 
-  const [rows, countResult, segments] = await Promise.all([
+  const [rows, countResult] = await Promise.all([
     db
       .select()
       .from(leadsTable)
@@ -147,11 +137,6 @@ export default async function LeadsPage({
       .select({ count: sql<number>`count(*)::int` })
       .from(leadsTable)
       .where(conditions.length ? and(...conditions) : undefined),
-    db
-      .selectDistinct({ segment: leadsTable.segment })
-      .from(leadsTable)
-      .where(sql`segment is not null`)
-      .orderBy(leadsTable.segment),
   ])
 
   const data = {
@@ -159,7 +144,7 @@ export default async function LeadsPage({
     count: countResult[0]?.count ?? 0,
     total: countResult[0]?.count ?? 0,
     page: requestedPage,
-    segments: segments.map((s) => s.segment).filter(Boolean) as string[],
+    segments: [],
     limit,
     offset,
   }

@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { UserButton } from '@clerk/nextjs'
 import {
   LayoutDashboard, Users, Sparkles, BarChart3, Send, Zap,
 } from 'lucide-react'
@@ -16,7 +15,7 @@ const NAV = [
   { href: '/outreach', label: 'Outreach', icon: Send },
 ]
 
-export function Sidebar({ authEnabled }: { authEnabled: boolean }) {
+export function Sidebar() {
   const pathname = usePathname()
 
   return (
@@ -58,14 +57,7 @@ export function Sidebar({ authEnabled }: { authEnabled: boolean }) {
 
       {/* Footer */}
       <div className="px-4 py-4 border-t border-[#2a2620] flex items-center gap-3">
-        {authEnabled ? (
-          <>
-            <UserButton afterSignOutUrl="/sign-in" />
-            <span className="text-xs text-[#6b6560] font-mono truncate">joshdwamena</span>
-          </>
-        ) : (
-          <span className="text-xs text-[#9b9589]">Auth setup required</span>
-        )}
+        <span className="text-xs text-[#6b6560] font-mono truncate">single-user mode</span>
       </div>
     </aside>
   )

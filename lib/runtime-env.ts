@@ -374,8 +374,7 @@ export function getDatabaseRuntimeDiagnostics(env: RuntimeEnv = getRuntimeEnv())
 
 export function getRuntimeEnvStatus(env: RuntimeEnv = getRuntimeEnv()) {
   return {
-    authDisabled: isAuthDisabled(env),
-    clerk: hasClerkRuntimeEnv(env),
+    authMode: 'single-user',
     database: hasDatabaseRuntimeEnv(env),
     openai: hasPrefix(env.OPENAI_API_KEY, ['sk-']),
     resendApi: hasPrefix(env.RESEND_API_KEY, ['re_']),
