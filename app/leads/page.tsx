@@ -81,13 +81,15 @@ export default async function LeadsPage({
     return <SetupState title="Leads view is waiting on auth setup" />
   }
 
-  if (authDisabled || !hasDatabaseRuntimeEnv()) {
+  if (!hasDatabaseRuntimeEnv()) {
     return <LeadsDemoView />
   }
 
-  const { auth } = await import('@clerk/nextjs/server')
-  const { userId } = await auth()
-  if (!userId) redirect('/sign-in')
+  if (!authDisabled) {
+    const { auth } = await import('@clerk/nextjs/server')
+    const { userId } = await auth()
+    if (!userId) redirect('/sign-in')
+  }
 
   const sp = await searchParams
   const requestedPage = sp.page ? parseInt(sp.page) : 1
