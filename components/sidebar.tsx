@@ -4,15 +4,16 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { UserButton } from '@clerk/nextjs'
 import {
-  LayoutDashboard, Users, Layers, Inbox, Settings, Zap,
+  LayoutDashboard, Users, Sparkles, BarChart3, Send, Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NAV = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/leads', label: 'Leads', icon: Users },
-  { href: '/sequences', label: 'Sequences', icon: Layers },
-  { href: '/inbox', label: 'Inbox', icon: Inbox },
+  { href: '/enrichment', label: 'Enrichment', icon: Sparkles },
+  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { href: '/outreach', label: 'Outreach', icon: Send },
 ]
 
 export function Sidebar({ authEnabled }: { authEnabled: boolean }) {
@@ -26,7 +27,10 @@ export function Sidebar({ authEnabled }: { authEnabled: boolean }) {
           <div className="w-7 h-7 rounded bg-[#c2410c] flex items-center justify-center">
             <Zap size={14} className="text-white" />
           </div>
-          <span className="font-serif text-white text-lg leading-none">Forge GTM</span>
+          <div>
+            <span className="font-serif text-white text-lg leading-none block">Forge GTM</span>
+            <span className="text-[11px] uppercase tracking-[0.18em] text-[#8c8578]">Lead Intelligence Hub</span>
+          </div>
         </div>
       </div>
 
