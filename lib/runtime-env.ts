@@ -25,6 +25,27 @@ function hasPrefix(value: string | undefined, prefixes: string[]) {
   return !!value && prefixes.some((prefix) => value.startsWith(prefix))
 }
 
+function isPlaceholderValue(value: string | undefined) {
+  if (!value) return false
+
+  const normalized = value.trim().toLowerCase()
+  return [
+    'host',
+    'hostname',
+    'dbname',
+    'database',
+    'database_name',
+    'username',
+    'user',
+    'password',
+    'postgres',
+    'your-host',
+    'your-database',
+    'your-username',
+    'your-password',
+  ].includes(normalized)
+}
+
 function isTruthy(value: string | undefined) {
   if (!value) return false
   return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase())
@@ -239,7 +260,16 @@ export function hasDatabaseRuntimeEnv(env: RuntimeEnv = getRuntimeEnv()) {
 
   try {
     const url = new URL(value as string)
-    return Boolean(url.username && url.hostname && url.pathname && url.pathname !== '/')
+    const databaseName = url.pathname.replace(/^\//, '')
+    return Boolean(
+      url.username
+      && url.hostname
+      && url.pathname
+      && url.pathname !== '/'
+      && !isPlaceholderValue(url.username)
+      && !isPlaceholderValue(url.hostname)
+      && !isPlaceholderValue(databaseName),
+    )
   } catch {
     return false
   }
@@ -278,10 +308,28 @@ export function getDatabaseRuntimeDiagnostics(env: RuntimeEnv = getRuntimeEnv())
       }
     }
 
+    if (isPlaceholderValue(url.username)) {
+      return {
+        ok: false,
+        reason: 'database_url_placeholder_username',
+        hasNeonSecret: neonSecretPresent,
+        hasDatabaseUrl: true,
+      }
+    }
+
     if (!url.hostname) {
       return {
         ok: false,
         reason: 'database_url_missing_hostname',
+        hasNeonSecret: neonSecretPresent,
+        hasDatabaseUrl: true,
+      }
+    }
+
+    if (isPlaceholderValue(url.hostname)) {
+      return {
+        ok: false,
+        reason: 'database_url_placeholder_hostname',
         hasNeonSecret: neonSecretPresent,
         hasDatabaseUrl: true,
       }
@@ -296,13 +344,23 @@ export function getDatabaseRuntimeDiagnostics(env: RuntimeEnv = getRuntimeEnv())
       }
     }
 
+    const databaseName = url.pathname.replace(/^\//, '')
+    if (isPlaceholderValue(databaseName)) {
+      return {
+        ok: false,
+        reason: 'database_url_placeholder_database_name',
+        hasNeonSecret: neonSecretPresent,
+        hasDatabaseUrl: true,
+      }
+    }
+
     return {
       ok: true,
       reason: 'ok',
       hasNeonSecret: neonSecretPresent,
       hasDatabaseUrl: true,
       hostname: url.hostname,
-      databaseName: url.pathname.replace(/^\//, ''),
+      databaseName,
     }
   } catch {
     return {
