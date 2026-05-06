@@ -1,5 +1,22 @@
 type RuntimeEnv = Record<string, string | undefined>
 
+const DATABASE_URL_KEYS = [
+  'DATABASE_URL',
+  'databaseUrl',
+  'database_url',
+  'url',
+  'connectionString',
+  'connection_string',
+  'pooledConnectionString',
+  'pooled_connection_string',
+  'databaseUrlPooled',
+  'DATABASE_URL_UNPOOLED',
+  'POSTGRES_URL',
+  'POSTGRES_URL_NON_POOLING',
+  'POSTGRES_PRISMA_URL',
+  'NEON_DATABASE_URL',
+] as const
+
 function firstDefined(...values: Array<string | undefined>) {
   return values.find((value) => typeof value === 'string' && value.trim())
 }
@@ -42,6 +59,45 @@ function parseMaybeJson(value?: string) {
   }
 }
 
+function stripWrappingQuotes(value: string) {
+  if (
+    (value.startsWith('"') && value.endsWith('"'))
+    || (value.startsWith("'") && value.endsWith("'"))
+    || (value.startsWith('`') && value.endsWith('`'))
+  ) {
+    return value.slice(1, -1).trim()
+  }
+
+  return value
+}
+
+function normalizeEnvValue(value: string) {
+  return stripWrappingQuotes(value.trim())
+}
+
+function readFromEnvLines(rawValue: string | undefined, keys: string[]) {
+  if (!rawValue) return undefined
+
+  const lines = rawValue
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  for (const line of lines) {
+    if (line.startsWith('#')) continue
+
+    for (const key of keys) {
+      const prefixes = [`${key}=`, `export ${key}=`]
+      const prefix = prefixes.find((candidate) => line.startsWith(candidate))
+      if (prefix) {
+        return normalizeEnvValue(line.slice(prefix.length))
+      }
+    }
+  }
+
+  return undefined
+}
+
 function readObjectValue(
   objectValue: Record<string, unknown> | null,
   keys: string[],
@@ -69,11 +125,19 @@ function coerceGroupedSecret(
   const fromObject = readObjectValue(objectValue, keys)
   if (fromObject) return fromObject
 
+  const fromEnvLines = readFromEnvLines(rawValue, keys)
+  if (fromEnvLines) {
+    if (!validators.length || validators.some((validator) => validator(fromEnvLines))) {
+      return fromEnvLines
+    }
+  }
+
   const trimmed = rawValue.trim()
   if (!trimmed || trimmed.startsWith('{')) return undefined
 
-  if (!validators.length || validators.some((validator) => validator(trimmed))) {
-    return trimmed
+  const normalized = normalizeEnvValue(trimmed)
+  if (!validators.length || validators.some((validator) => validator(normalized))) {
+    return normalized
   }
 
   return undefined
@@ -102,7 +166,7 @@ export function hydrateRuntimeEnv(env: NodeJS.ProcessEnv | RuntimeEnv = process.
   assignIfMissing(
     runtimeEnv,
     'DATABASE_URL',
-    coerceGroupedSecret(runtimeEnv['Neon'], ['DATABASE_URL', 'databaseUrl', 'database_url', 'url', 'connectionString'], [
+    coerceGroupedSecret(runtimeEnv['Neon'], [...DATABASE_URL_KEYS], [
       (value) => value.startsWith('postgres://') || value.startsWith('postgresql://'),
     ]),
   )
@@ -178,6 +242,75 @@ export function hasDatabaseRuntimeEnv(env: RuntimeEnv = getRuntimeEnv()) {
     return Boolean(url.username && url.hostname && url.pathname && url.pathname !== '/')
   } catch {
     return false
+  }
+}
+
+export function getDatabaseRuntimeDiagnostics(env: RuntimeEnv = getRuntimeEnv()) {
+  const value = env.DATABASE_URL
+  const neonSecretPresent = Boolean(env.Neon?.trim())
+
+  if (!value) {
+    return {
+      ok: false,
+      reason: neonSecretPresent ? 'database_url_not_extracted' : 'neon_secret_missing',
+      hasNeonSecret: neonSecretPresent,
+      hasDatabaseUrl: false,
+    }
+  }
+
+  if (!hasPrefix(value, ['postgres://', 'postgresql://'])) {
+    return {
+      ok: false,
+      reason: 'database_url_invalid_scheme',
+      hasNeonSecret: neonSecretPresent,
+      hasDatabaseUrl: true,
+    }
+  }
+
+  try {
+    const url = new URL(value)
+    if (!url.username) {
+      return {
+        ok: false,
+        reason: 'database_url_missing_username',
+        hasNeonSecret: neonSecretPresent,
+        hasDatabaseUrl: true,
+      }
+    }
+
+    if (!url.hostname) {
+      return {
+        ok: false,
+        reason: 'database_url_missing_hostname',
+        hasNeonSecret: neonSecretPresent,
+        hasDatabaseUrl: true,
+      }
+    }
+
+    if (!url.pathname || url.pathname === '/') {
+      return {
+        ok: false,
+        reason: 'database_url_missing_database_name',
+        hasNeonSecret: neonSecretPresent,
+        hasDatabaseUrl: true,
+      }
+    }
+
+    return {
+      ok: true,
+      reason: 'ok',
+      hasNeonSecret: neonSecretPresent,
+      hasDatabaseUrl: true,
+      hostname: url.hostname,
+      databaseName: url.pathname.replace(/^\//, ''),
+    }
+  } catch {
+    return {
+      ok: false,
+      reason: 'database_url_parse_failed',
+      hasNeonSecret: neonSecretPresent,
+      hasDatabaseUrl: true,
+    }
   }
 }
 
